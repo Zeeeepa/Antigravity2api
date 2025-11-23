@@ -130,11 +130,22 @@ app.get('/v1/models', async (req, res) => {
 });
 
 app.post('/v1/chat/completions', async (req, res) => {
-  const { messages, model, stream = true, tools, ...params } = req.body;
+  let { messages, model, stream = true, tools, ...params } = req.body;
   try {
 
     if (!messages) {
       return res.status(400).json({ error: 'messages is required' });
+    }
+
+    // 智能检测：NewAPI测速请求通常消息很简单，强制使用非流式响应
+    // 检测条件：单条消息 + 内容很短（如 "hi", "test" 等）
+    const isSingleShortMessage = messages.length === 1 &&
+      messages[0].content &&
+      messages[0].content.length < 20;
+
+    // 如果检测到可能是测速请求，且未明确要求流式，则使用非流式
+    if (isSingleShortMessage && req.body.stream === undefined) {
+      stream = false;
     }
 
     const requestBody = generateRequestBody(messages, model, params, tools);
